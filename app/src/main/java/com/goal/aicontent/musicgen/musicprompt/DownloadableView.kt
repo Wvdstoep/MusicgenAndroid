@@ -60,7 +60,6 @@ fun DownloadableView(context: Context) {
     var deleteFromStorage by remember { mutableStateOf(false) }
     var sortCriterion by remember { mutableStateOf(SortCriterion.None) }
     var sortOrder by remember { mutableStateOf(SortOrder.Ascending) }
-    val trimViewModel: TrimViewModel = viewModel()
 
     val downloadableContent by viewModel.downloadableContents.collectAsState()
     val sortedContent = when (sortCriterion) {
@@ -68,8 +67,8 @@ fun DownloadableView(context: Context) {
         SortCriterion.Duration -> if (sortOrder == SortOrder.Ascending) downloadableContent.sortedBy { it.duration } else downloadableContent.sortedByDescending { it.duration }
         else -> downloadableContent
     }
-    val isPlaying by trimViewModel.isPlaying.collectAsState()
-    val currentlyPlaying by trimViewModel.currentlyPlaying.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
+    val currentlyPlaying by viewModel.currentlyPlaying.collectAsState()
 
 
     LaunchedEffect(true) {
@@ -125,7 +124,7 @@ fun DownloadableView(context: Context) {
                                 }
                                 DownloadStatus.DOWNLOADED -> IconButton(onClick = {
                                     content.filePath?.let { filePath ->
-                                        trimViewModel.playAudioFromUri(context, Uri.parse(filePath), content.title)
+                                        viewModel.playAudioFromUri(context, Uri.parse(filePath), content.title)
                                     }
                                 }) {
                                     Icon(if (isPlaying && currentlyPlaying == content.title) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = "Play/Pause")

@@ -12,17 +12,23 @@ import android.os.Environment
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavHostController
 import androidx.room.Room
+import androidx.room.withTransaction
 import com.goal.aicontent.DownloadStatus
 import com.goal.aicontent.clients.ApiClient
 import com.goal.aicontent.database.AppDatabase
 import com.goal.aicontent.database.DownloadableContentEntity
 import com.goal.aicontent.functions.DownloadableContent
+import com.goal.aicontent.functions.ExoPlayerSingleton
 import com.goal.aicontent.functions.GenreMappings
+import com.goal.aicontent.functions.MediaEditingManager
 import com.goal.aicontent.functions.MusicGenerationService
 import com.goal.aicontent.functions.MusicPromptRequest
 import com.goal.aicontent.functions.TaskStatusResponse
@@ -38,19 +44,10 @@ import java.io.File
 @UnstableApi
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class MusicPromptViewModel (application: Application) : AndroidViewModel(application){
-
-    companion object {
-        fun fromEntity(entity: DownloadableContentEntity): DownloadableContent {
-            return DownloadableContent(
-                taskId = entity.taskId,
-                title = entity.title,
-                filePath = entity.filePath,
-                downloadUrl = entity.downloadUrl,
-                duration = entity.duration,
-                status = mutableStateOf(DownloadStatus.valueOf(entity.status))
-            )
-        }
-    }
+    private val _currentlyPlaying = MutableStateFlow<String?>(null)
+    val currentlyPlaying: StateFlow<String?> = _currentlyPlaying.asStateFlow()
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -60,15 +57,16 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
     private val _selectedItemsOrder = MutableStateFlow<List<String>>(emptyList())
     val selectedItemsOrder: StateFlow<List<String>> = _selectedItemsOrder.asStateFlow()
     private val _selectedModel = MutableStateFlow("facebook/musicgen-small")
+
     private var _duration = MutableStateFlow(30f) // Default duration
+    val duration: MutableStateFlow<Float> = _duration
+
     val genres = GenreMappings.genres
     private val musicGenerationService: MusicGenerationService =
         ApiClient.retrofit.create(MusicGenerationService::class.java)
 
     private val downloadIdToTaskIdMap = HashMap<Long, String>()
-    init {
-        checkIncompleteTasks()
-    }
+
     private val db = Room.databaseBuilder(
         getApplication<Application>().applicationContext,
         AppDatabase::class.java, "DownloadableContentDao"
@@ -105,7 +103,10 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
             status = this.status.value.name
         )
     }
-
+    init {
+        Log.d("MusicPromptVM", "ViewModel initialized")
+        checkIncompleteTasks()
+    }
     fun getFilePathFromDownloadId(context: Context?, downloadId: Long): String? {
         Log.d("DownloadFile", "Retrieving file path for download ID: $downloadId")
         val downloadManager = context?.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
@@ -261,39 +262,38 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
         status: DownloadStatus
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            Log.d("MusicPromptVM", "Updating or inserting content for taskId: $finalTaskId")
+            try {
+                // Use Room's withTransaction for coroutine support
+                db.withTransaction {
+                    Log.d("MusicPromptVM", "Updating or inserting content for taskId: $finalTaskId")
 
-            // Attempt to find an existing entry using the final taskId
-            val existingContent = db.downloadableContentDao().getTaskById(finalTaskId)
+                    val existingContent = db.downloadableContentDao().getTaskById(finalTaskId)
+                    val updatedContent = existingContent?.copy(
+                        title = title,
+                        downloadUrl = downloadUrl ?: existingContent.downloadUrl,
+                        filePath = filePath ?: existingContent.filePath,
+                        duration = duration,
+                        status = status.name
+                    ) ?: DownloadableContentEntity(
+                        taskId = finalTaskId,
+                        title = title,
+                        downloadUrl = downloadUrl ?: "",
+                        filePath = filePath ?: "",
+                        duration = duration,
+                        status = status.name
+                    )
 
-            val updatedContent = existingContent?.copy(
-                title = title,
-                downloadUrl = downloadUrl ?: existingContent.downloadUrl,
-                filePath = filePath ?: existingContent.filePath,
-                duration = duration,
-                status = status.name
-            ) ?: DownloadableContentEntity(
-                taskId = finalTaskId,
-                title = title,
-                downloadUrl = downloadUrl ?: "",
-                filePath = filePath ?: "",
-                duration = duration,
-                status = status.name
-            )
+                    db.downloadableContentDao().insert(updatedContent)
+                    Log.d("MusicPromptVM", "Transaction committed for taskId: $finalTaskId")
+                }
 
-            // Insert or update the database entry
-            db.downloadableContentDao().insert(updatedContent)
-            Log.d("MusicPromptVM", "Content updated in database for taskId: $finalTaskId")
-
-            // Update the in-memory list accordingly
-            _downloadableContents.value = _downloadableContents.value.filterNot { it.taskId == finalTaskId } + fromEntity(updatedContent)
-
-            withContext(Dispatchers.Main) {
-                Log.d("MusicPromptVM", "In-memory list updated for taskId: $finalTaskId")
+                // After transaction, reload contents to update UI
+                loadDownloadableContents()
+            } catch (e: Exception) {
+                Log.e("MusicPromptVM", "Transaction failed for taskId: $finalTaskId, error: ${e.localizedMessage}")
             }
         }
     }
-
     private fun checkTaskStatusPeriodically(taskId: String, title: String, duration: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             var taskStatus: TaskStatusResponse?
@@ -374,13 +374,109 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
     private fun checkIncompleteTasks() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val incompleteTasks = db.downloadableContentDao().getTasksByStatus("processing")
+                Log.d("MusicPromptVM", "Fetching tasks with status 'processing'")
+                val incompleteTasks = db.downloadableContentDao().getTasksByStatus("PROCESSING")
+                Log.d("MusicPromptVM", "Found ${incompleteTasks.size} incomplete tasks")
+                Log.d("MusicPromptVM", "Loaded ${incompleteTasks.size} incomplete tasks")
                 incompleteTasks.forEach { task ->
-                    checkTaskStatusPeriodically(task.taskId, task.title, _duration.value)
+                    Log.d("MusicPromptVM", "Resuming status check for task: ${task.taskId}")
+                    checkTaskStatusPeriodically(task.taskId, task.title, task.duration.toFloat())
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(getApplication(), "Error checking incomplete tasks: ${e.message}", Toast.LENGTH_LONG).show()
+                Log.e("MusicPromptVM", "Error checking incomplete tasks: ${e.message}")
+            }
+        }
+    }
+    fun editSelectedItem(context: Context, navController: NavHostController) {
+        val selectedItemTitle = selectedItemsOrder.value.firstOrNull() // Assuming only one item can be edited at a time
+        selectedItemTitle?.let { title ->
+            downloadableContents.value.find { it.title == title }?.filePath?.let { filePath ->
+                val uri = when {
+                    filePath.startsWith("content://") || filePath.startsWith("file://") -> Uri.parse(filePath)
+                    else -> Uri.fromFile(File(filePath))
+                }
+                val uriString = Uri.encode(uri.toString())
+                navController.navigate("trimViewRoute/$uriString")
+            } ?: run {
+                Toast.makeText(context, "File path is invalid or item not found.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    fun shareSong(fileUri: Uri, songTitle: String) {
+        val context = getApplication<Application>().applicationContext
+
+        try {
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.applicationContext.packageName}.provider",
+                File(fileUri.path ?: return)
+            )
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "audio/*"
+                putExtra(Intent.EXTRA_STREAM, contentUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val chooserIntent = Intent.createChooser(shareIntent, "Share Song")
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooserIntent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Error sharing file: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun playAudioFromUri(context: Context, audioUri: Uri, title: String) {
+        // If the same audio is already playing, pause it.
+        if (_currentlyPlaying.value == title) {
+            ExoPlayerSingleton.getExoPlayer(context).pause()
+            _isPlaying.value = false
+            _currentlyPlaying.value = null
+        } else {
+            // Else, play the new audio.
+            val file = File(audioUri.path ?: "")
+            if (!file.exists()) {
+                Toast.makeText(context, "File does not exist.", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val mediaUri = Uri.fromFile(file)
+            ExoPlayerSingleton.preview(context, mediaUri, 0, Long.MAX_VALUE)
+            _isPlaying.value = true
+            _currentlyPlaying.value = title
+
+            ExoPlayerSingleton.playerStateCallback = object : ExoPlayerSingleton.PlayerStateCallback {
+                override fun onPlaybackStateChanged(isPlaying: Boolean) {
+                    _isPlaying.value = isPlaying
+                    if (!isPlaying) {
+                        // If playback stopped, clear the currently playing state.
+                        _currentlyPlaying.value = null
+                    }
+                }
+            }
+        }
+    }
+    fun concatenateSelectedAudioFiles(context: Context) {
+        val mediaEditingManager = MediaEditingManager(context)
+        val selectedFiles = _downloadableContents.value
+            .filter { it.title in _selectedItems.value }
+            .mapNotNull { it.filePath }
+            .toList()
+
+        if (selectedFiles.isEmpty()) {
+            Toast.makeText(context, "No files selected for concatenation.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val outputFilePath = "${context.getExternalFilesDir(Environment.DIRECTORY_MUSIC)}/Concatenated_${System.currentTimeMillis()}.mp3"
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _isLoading.value = true
+            val success = mediaEditingManager.concatenateSelectedFiles(selectedFiles, outputFilePath)
+            withContext(Dispatchers.Main) {
+                _isLoading.value = false
+                if (success) {
+                    Toast.makeText(context, "Files merged successfully!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Failed to merge files.", Toast.LENGTH_LONG).show()
                 }
             }
         }

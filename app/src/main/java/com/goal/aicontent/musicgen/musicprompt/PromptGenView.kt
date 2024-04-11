@@ -78,7 +78,7 @@ fun PromptGenView( modifier: Modifier = Modifier) {
     val isLoading by chatViewModel.isLoading.collectAsState()
     val context = LocalContext.current
     var showChoiceDialog by remember { mutableStateOf(false) }
-    var selectedDuration by remember { mutableStateOf(8f) } // Default to 8 seconds, adjust as needed
+    val selectedDuration by musicPromptViewModel.duration.collectAsState()
 
     val lazyListState = rememberLazyListState()
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -224,7 +224,7 @@ fun PromptGenView( modifier: Modifier = Modifier) {
                     Spacer(modifier = Modifier.height(8.dp))
                     PremiumSlider(
                         selectedDuration = selectedDuration,
-                        onDurationChange = { selectedDuration = it },
+                        onDurationChange = {  musicPromptViewModel.setDuration(it) },
                         onCrownClick = {
                             // Define what happens when the crown is clicked
                             // For example, showing a dialog or toast
@@ -238,8 +238,7 @@ fun PromptGenView( modifier: Modifier = Modifier) {
                 Button(
                     onClick = {
                         showDialog.value = false
-                        musicPromptViewModel.setDuration(8f) // Set the duration to 8 seconds
-                        musicPromptViewModel.generateMusic(messageText) // Then generate the music
+                        musicPromptViewModel.generateMusic(messageText) // Use the current ViewModel's duration
                     },
                    // enabled = selectedDuration <= 9 // Button is disabled if the duration is over 8 seconds
                 ) { Text("Yes, generate") }

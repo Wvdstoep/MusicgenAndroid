@@ -96,7 +96,7 @@ fun BottomSheetContent(navController: NavHostController, bottomSheetScaffoldStat
                 FloatingActionButton(
                     onClick = {
                         if (selectedItemsCount == 1) {
-                            trimViewModel.editSelectedItem(context, navController)
+                            viewModel.editSelectedItem(context, navController)
                         } else if (selectedItemsCount > 1) {
                             Toast.makeText(context, "Please select only one item to edit.", Toast.LENGTH_SHORT).show()
                         } else {
@@ -112,7 +112,7 @@ fun BottomSheetContent(navController: NavHostController, bottomSheetScaffoldStat
                             val firstSelectedItemTitle = selectedItems.first()
                             viewModel.downloadableContents.value.find { it.title == firstSelectedItemTitle }?.filePath?.let { filePath ->
                                 val fileUri = Uri.parse(filePath)
-                                trimViewModel.shareSong(fileUri, firstSelectedItemTitle)
+                                viewModel.shareSong(fileUri, firstSelectedItemTitle)
                             }
                         } else if (selectedItemsCount > 1) {
                             Toast.makeText(context, "Please select only one item to share.", Toast.LENGTH_SHORT).show()

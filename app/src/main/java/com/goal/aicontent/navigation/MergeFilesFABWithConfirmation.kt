@@ -48,7 +48,7 @@ fun MergeFilesFABWithConfirmation(viewModel: MusicPromptViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        trimViewModel.concatenateSelectedAudioFiles(context)
+                        viewModel.concatenateSelectedAudioFiles(context)
                         showDialog = false
                     }
                 ) {
