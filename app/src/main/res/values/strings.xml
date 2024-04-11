@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">aicontent</string>
-    <string name="title_radio">aicontent</string>
+    <string name="title_home">Home</string>
+    <string name="title_edit">edit</string>
+    <string name="title_prompt">prompt</string>
+    <string name="User_Color_Settings_View">color</string>
+
 </resources>

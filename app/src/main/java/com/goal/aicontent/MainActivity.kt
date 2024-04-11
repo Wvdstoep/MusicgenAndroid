@@ -8,11 +8,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -39,7 +42,7 @@ class MainActivity : AppCompatActivity() {
     @OptIn(UnstableApi::class) @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val uiModeManager: UiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+        getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
         analytics = Firebase.analytics
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ActivityCompat.requestPermissions(
@@ -48,6 +51,7 @@ class MainActivity : AppCompatActivity() {
                 0
             )
         }
+
         val channel = NotificationChannel(
             "running_channel",
             "media",
@@ -66,7 +70,7 @@ class MainActivity : AppCompatActivity() {
 
         }
         setContent {
-            AicontentTheme {
+            AicontentTheme() {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

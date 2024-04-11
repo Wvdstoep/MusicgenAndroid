@@ -1,4 +1,4 @@
-package com.goal.aicontent.musicgen
+package com.goal.aicontent.musicgen.musicprompt.elements
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row

@@ -19,12 +19,14 @@ import com.goal.aicontent.Screen
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
+        Screen.HomePage,
         Screen.MusicPromptView,
+        Screen.MusicEditView
     )
     Surface(color = MaterialTheme.colorScheme.background) {
         BottomNavigation(
-            backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            backgroundColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
         ) {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route

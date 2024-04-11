@@ -1,9 +1,7 @@
-package com.goal.aicontent.musicgen
+package com.goal.aicontent.functions
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -15,10 +13,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 
 @UnstableApi
@@ -28,35 +25,28 @@ object ExoPlayerSingleton {
     fun preview(context: Context, mediaUri: Uri, startMs: Long, endMs: Long) {
         val player = getExoPlayer(context)
 
-        // Create and prepare the media item
         val mediaItem = MediaItem.fromUri(mediaUri)
         player.setMediaItem(mediaItem)
         player.prepare()
 
-        // Seek to the starting position and start playback
         player.seekTo(startMs)
         player.playWhenReady = true
 
-        // Handler to periodically check playback position
         val handler = Handler(Looper.getMainLooper())
         val checkPositionRunnable = object : Runnable {
             override fun run() {
                 if (player.currentPosition >= endMs) {
-                    // Stop playback when reaching the end time
                     player.pause()
                     player.stop()
                     player.clearMediaItems()
                 } else {
-                    // Re-post the runnable to keep checking periodically
-                    handler.postDelayed(this, 1000) // Check every second
+                    handler.postDelayed(this, 1000)
                 }
             }
         }
 
-        // Start the periodic check
         handler.post(checkPositionRunnable)
 
-        // Make sure to remove callbacks when the player is released or no longer needed
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
@@ -64,10 +54,6 @@ object ExoPlayerSingleton {
                 }
             }
         })
-    }
-    fun isPlaying(): Boolean {
-        // Returns true if ExoPlayer is playing.
-        return exoPlayer?.isPlaying ?: false
     }
     fun getExoPlayer(context: Context): ExoPlayer {
         if (exoPlayer == null) {
@@ -114,10 +100,14 @@ object ExoPlayerSingleton {
     }
 
     fun releaseExoPlayer() {
-        Log.d("ExoPlayerSingleton", "Releasing ExoPlayer")
-        exoPlayer?.release()
+        exoPlayer?.run {
+            stop()
+            release()
+        }
         exoPlayer = null
+        playerStateCallback = null
     }
+
 
     interface PlayerStateCallback {
         fun onPlaybackStateChanged(isPlaying: Boolean)

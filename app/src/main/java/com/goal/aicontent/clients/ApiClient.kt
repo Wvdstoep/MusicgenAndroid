@@ -1,4 +1,4 @@
-package com.goal.aicontent.musicgen
+package com.goal.aicontent.clients
 
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -7,9 +7,9 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(2000, TimeUnit.SECONDS) // Increase connect timeout
-        .readTimeout(2000, TimeUnit.SECONDS) // Increase read timeout
-        .writeTimeout(2000, TimeUnit.SECONDS) // Increase write timeout
+        .connectTimeout(2000, TimeUnit.SECONDS)
+        .readTimeout(2000, TimeUnit.SECONDS)
+        .writeTimeout(2000, TimeUnit.SECONDS)
         .build()
 
     val retrofit: Retrofit = Retrofit.Builder()
