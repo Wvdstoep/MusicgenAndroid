@@ -66,7 +66,7 @@ fun TrimView(
     var endTime by remember { mutableStateOf(trimViewModel.initialEnd.value) }
     var customFileName by remember { mutableStateOf("") }
     val isLoading by trimViewModel.isLoading.observeAsState()
-    val isPlaying by trimViewModel.isPlaying.collectAsState()
+    val isPlaying by trimViewModel.isPlaying.observeAsState(false)
     val waveform by trimViewModel.waveform.collectAsState()
     Log.d("WaveformView", "Waveform data size: ${waveform.size}")
     var isFullScreen by remember { mutableStateOf(false) }

@@ -15,15 +15,13 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.goal.aicontent.HomePageView
 import com.goal.aicontent.HomePageViewModel
-import com.goal.aicontent.HomePageViewWrapper
+import com.goal.aicontent.musicgen.musicprompt.homepage.HomePageViewWrapper
 import com.goal.aicontent.models.AudioEditViewModel
 import com.goal.aicontent.models.ChatViewModel
 import com.goal.aicontent.Screen
 import com.goal.aicontent.edit.TrimView
 import com.goal.aicontent.models.TrimViewModel
-import com.goal.aicontent.openai.FavoritesView
 import com.goal.aicontent.edit.MusicEditView
 import com.goal.aicontent.musicgen.musicprompt.MusicPromptView
 
@@ -53,7 +51,7 @@ fun NavigationGraph(navController: NavHostController, paddingValues: PaddingValu
             MusicPromptView(viewModel = viewModel, navController = navController)
         }
         composable(Screen.MusicEditView.route) {
-            MusicEditView( navController = navController)
+            MusicEditView()
         }
         composable(Screen.UserColorSettingsView.route) {
             UserColorSettingsView(viewModel = themeViewModel)

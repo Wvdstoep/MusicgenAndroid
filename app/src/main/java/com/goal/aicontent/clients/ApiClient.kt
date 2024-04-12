@@ -7,9 +7,9 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(2000, TimeUnit.SECONDS)
-        .readTimeout(2000, TimeUnit.SECONDS)
-        .writeTimeout(2000, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     val retrofit: Retrofit = Retrofit.Builder()

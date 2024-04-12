@@ -170,7 +170,7 @@ fun BottomSheetContent(navController: NavHostController, bottomSheetScaffoldStat
                 Button(
                     onClick = {
                         // Perform the removal
-                        viewModel.removeSelectedItems()
+                        viewModel.removeSelectedItemsByTitle(context)  // Use the new method
                         Toast.makeText(context, "Selected items removed", Toast.LENGTH_SHORT).show()
                         showDialog = false // Dismiss the dialog
                     }

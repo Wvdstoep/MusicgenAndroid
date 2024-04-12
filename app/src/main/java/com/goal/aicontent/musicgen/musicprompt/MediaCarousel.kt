@@ -135,7 +135,7 @@ fun CarouselBox(item: TaskItem, onPlayClick: (TaskItem) -> Unit) {
             // Use a custom composable if the prompt text is too long to fit.
             ExpandableText(
                 text = item.prompt,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(horizontal = 8.dp) // Add horizontal padding for the text.
             )

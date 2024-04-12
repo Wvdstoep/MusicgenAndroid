@@ -21,11 +21,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,6 +82,9 @@ fun PromptGenView( modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var showChoiceDialog by remember { mutableStateOf(false) }
     val selectedDuration by musicPromptViewModel.duration.collectAsState()
+    val models = listOf("musicgen-small", "musicgen-medium", "Model C") // Example model names
+    var selectedModel by remember { mutableStateOf(models.first()) }
+    var expanded by remember { mutableStateOf(false) }
 
     val lazyListState = rememberLazyListState()
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -220,27 +226,49 @@ fun PromptGenView( modifier: Modifier = Modifier) {
             title = { Text("Generate Song?") },
             text = {
                 Column {
-                    Text("Choose the duration for your song:")
+                    Text("Choose the duration and model for your song:")
                     Spacer(modifier = Modifier.height(8.dp))
+
                     PremiumSlider(
                         selectedDuration = selectedDuration,
-                        onDurationChange = {  musicPromptViewModel.setDuration(it) },
+                        onDurationChange = { musicPromptViewModel.setDuration(it) },
                         onCrownClick = {
                             // Define what happens when the crown is clicked
-                            // For example, showing a dialog or toast
                             Log.d("PremiumFeature", "Crown clicked - premium feature")
                         }
                     )
                     Text("${selectedDuration.toInt()} seconds")
+
+                    // Model selection UI
+                    var expanded by remember { mutableStateOf(false) }
+                    TextButton(onClick = { expanded = true }) {
+                        Text(selectedModel)
+                        Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = "Select Model")
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        models.forEach { model ->
+                            DropdownMenuItem(
+                                text = { Text(model) },
+                                onClick = {
+                                    selectedModel = model
+                                    musicPromptViewModel.setSelectedModel(model)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showDialog.value = false
-                        musicPromptViewModel.generateMusic(messageText) // Use the current ViewModel's duration
-                    },
-                   // enabled = selectedDuration <= 9 // Button is disabled if the duration is over 8 seconds
+                        musicPromptViewModel.generateMusic(messageText) // Use the current ViewModel's settings
+                    }
                 ) { Text("Yes, generate") }
             },
             dismissButton = {

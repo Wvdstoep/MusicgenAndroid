@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -16,6 +17,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ConcatenatingMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 
 @UnstableApi
@@ -98,7 +100,25 @@ object ExoPlayerSingleton {
         }
         return exoPlayer!!
     }
+    fun previewmul(context: Context, uris: List<Uri>, startIndex: Int = 0) {
+        val player = getExoPlayer(context)
+        val concatenatingMediaSource = ConcatenatingMediaSource()
 
+        uris.forEach { uri ->
+            val mediaItem = MediaItem.fromUri(uri)
+            val mediaSource = DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+            // Optionally, you could apply clipping here if needed:
+            // val clippedSource = ClippingMediaSource(mediaSource, startMs * 1000, endMs * 1000)
+            concatenatingMediaSource.addMediaSource(mediaSource)
+        }
+
+        player.setMediaSource(concatenatingMediaSource)
+        player.prepare()
+        player.playWhenReady = true
+
+        // You might want to start playing from a particular index
+        player.seekTo(startIndex, C.TIME_UNSET)
+    }
     fun releaseExoPlayer() {
         exoPlayer?.run {
             stop()

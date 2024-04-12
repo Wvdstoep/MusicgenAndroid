@@ -28,6 +28,7 @@ interface DownloadableContentDao {
     @Query("DELETE FROM DownloadableContentEntity WHERE title = :title")
     suspend fun deleteByTitle(title: String)
 
+
     @Query("SELECT * FROM DownloadableContentEntity WHERE status = :status")
     suspend fun getTasksByStatus(status: String): List<DownloadableContentEntity>
 

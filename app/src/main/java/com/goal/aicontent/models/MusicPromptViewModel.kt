@@ -125,19 +125,27 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
         cursor?.close()
         return null
     }
-    fun removeSelectedItems() {
+    fun removeSelectedItems(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
+            Log.d("MusicPromptVM", "Selected items to remove: ${_selectedItems.value.joinToString()}")
+
             val contentsToRemove = _downloadableContents.value.filter { it.taskId in _selectedItems.value }
+            Log.d("MusicPromptVM", "Attempting to remove ${contentsToRemove.size} items.")
+
             contentsToRemove.forEach { content ->
-                db.downloadableContentDao().delete(content.toEntity())
-                Log.d("MusicPromptVM", "Removed content from database: ${content.title}")
+                try {
+                    db.downloadableContentDao().delete(content.toEntity())
+                    Log.d("MusicPromptVM", "Successfully removed content from database: ${content.title}")
+                } catch (e: Exception) {
+                    Log.e("MusicPromptVM", "Error removing content from database: ${content.title}", e)
+                }
             }
 
-            // Update in-memory list
             val updatedList = _downloadableContents.value - contentsToRemove.toSet()
             withContext(Dispatchers.Main) {
                 _downloadableContents.value = updatedList
                 _selectedItems.value = emptySet() // Clear after removal
+                Log.d("MusicPromptVM", "Updated in-memory content list after removal.")
             }
         }
     }
@@ -222,6 +230,34 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
             withContext(Dispatchers.Main) {
                 _downloadableContents.value = updatedList
                 Log.d("MusicPromptVM", "In-memory list updated, UI should now reflect changes for taskId: $taskId")
+            }
+        }
+    }
+    fun removeSelectedItemsByTitle(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Log the titles of the selected items
+            Log.d("MusicPromptVM", "Selected items to remove by title: ${_selectedItems.value.joinToString()}")
+
+            // Find contents to remove based on selected titles
+            val contentsToRemove = _downloadableContents.value.filter { it.title in _selectedItems.value }
+            Log.d("MusicPromptVM", "Attempting to remove ${contentsToRemove.size} items based on title.")
+
+            // Remove each content from the database and handle exceptions
+            contentsToRemove.forEach { content ->
+                try {
+                    db.downloadableContentDao().deleteByTitle(content.title)
+                    Log.d("MusicPromptVM", "Successfully removed content from database by title: ${content.title}")
+                } catch (e: Exception) {
+                    Log.e("MusicPromptVM", "Error removing content by title from database: ${content.title}", e)
+                }
+            }
+
+            // Update the in-memory list to reflect the changes
+            val updatedList = _downloadableContents.value - contentsToRemove.toSet()
+            withContext(Dispatchers.Main) {
+                _downloadableContents.value = updatedList
+                _selectedItems.value = emptySet() // Clear after removal
+                Log.d("MusicPromptVM", "Updated in-memory content list after removal by title.")
             }
         }
     }
@@ -317,11 +353,11 @@ class MusicPromptViewModel (application: Application) : AndroidViewModel(applica
                     )
                 } else {
                     // If status isn't 'completed', handle accordingly
-                    updateDownloadableContentStatus(taskId, DownloadStatus.FAILED)
+                    updateDownloadableContentStatus(taskId, DownloadStatus.PROCESSING)
                 }
             } catch (e: Exception) {
                 Log.e("MusicPromptVM", "Error checking task status: ${e.localizedMessage}", e)
-                updateDownloadableContentStatus(taskId, DownloadStatus.FAILED)
+                updateDownloadableContentStatus(taskId, DownloadStatus.PROCESSING)
             }
         }
     }

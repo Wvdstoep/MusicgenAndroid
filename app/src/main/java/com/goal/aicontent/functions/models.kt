@@ -1,5 +1,6 @@
 package com.goal.aicontent.functions
 
+import android.net.Uri
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import com.goal.aicontent.DownloadStatus
@@ -23,7 +24,8 @@ data class TaskItem(
     val error: String?,
     val prompt: String,
     val duration: Double,
-    val model_name: String
+    val model_name: String,
+    var isFavorite: Boolean = false
 )
 
 data class MusicPromptRequest(
@@ -83,4 +85,12 @@ data class TaskStatusResponse(
     val taskId: String?, // Add this if your JSON response contains a taskId
     @SerializedName("download_url")
     val downloadUrl: String?
+)
+data class AudioFile(
+    val name: String,
+    val uri: Uri,
+    val duration: Long,
+    val startTimeInSeconds: Long,
+    val waveform: List<Float> = listOf(),
+    var dragOffset: Float = 0f
 )

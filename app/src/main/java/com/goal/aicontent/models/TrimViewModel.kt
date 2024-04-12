@@ -3,7 +3,6 @@ package com.goal.aicontent.models
 import android.app.Application
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -11,7 +10,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
-import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -19,16 +17,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.navigation.NavHostController
 import com.arthenica.mobileffmpeg.FFmpeg
 import com.goal.aicontent.functions.DownloadableContent
 import com.goal.aicontent.functions.ExoPlayerSingleton
-import com.goal.aicontent.functions.MediaEditingManager
 import com.goal.aicontent.functions.TrimmedFileData
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,26 +51,17 @@ class TrimViewModel(application: Application) : AndroidViewModel(application), P
     val initialEnd: StateFlow<Long> = _initialEnd
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _isPlaying = MutableStateFlow(false)
-    val isPlaying: StateFlow<Boolean> = _isPlaying
-
     private val _playbackPosition = MutableStateFlow(0L)
     val playbackPosition: StateFlow<Long> = _playbackPosition.asStateFlow()
+    // Inside TrimViewModel class
+    private val _isPlaying = MutableLiveData<Boolean>().apply { value = false }
+    val isPlaying: LiveData<Boolean> = _isPlaying
 
-    private val _waveform = MutableStateFlow<List<Float>>(listOf())
-    val waveform: StateFlow<List<Float>> = _waveform
-
-    private fun processAudioFile(
-        context: Context,
-        audioUri: Uri,
-        onWaveformDataReady: (List<Float>) -> Unit
-    ) {
-        val tempFile = uriToTempFile(context, audioUri)
-        val tempPcmFile = File(context.cacheDir, "temp_audio_file.pcm")
-        extractRawAudioData(tempFile.path, tempPcmFile.path)
-        val waveform = generateWaveformData(tempPcmFile.path)
-        onWaveformDataReady(waveform)
+    fun updateUserPlaybackPosition(newPosition: Long) {
+        // Update the playback position directly
+        _playbackPosition.value = newPosition
+        // Optionally, seek the player to this new position if needed
+        exoPlayer.seekTo(newPosition)
     }
 
     fun applyVolumeAdjustment(context: Context, inputUri: Uri, startTimeMs: Long, endTimeMs: Long, volume: Float, filename: String) {
@@ -141,39 +127,13 @@ class TrimViewModel(application: Application) : AndroidViewModel(application), P
         }
     }
 
-    private fun uriToTempFile(context: Context, uri: Uri): File {
-        val tempFile = File.createTempFile("audio", ".mp3", context.cacheDir)
-        context.contentResolver.openInputStream(uri)?.use { inputStream ->
-            tempFile.outputStream().use { outputStream ->
-                inputStream.copyTo(outputStream)
-            }
-        }
-        return tempFile
+
+
+
+
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        _isPlaying.value = isPlaying
     }
-
-
-    private fun extractRawAudioData(inputAudioFilePath: String, outputRawFilePath: String) {
-        val command = "-y -i '$inputAudioFilePath' -f s16le -ac 1 -ar 44100 '$outputRawFilePath'"
-        FFmpeg.execute(command)
-    }
-
-    private fun generateWaveformData(rawAudioFilePath: String): List<Float> {
-        val file = File(rawAudioFilePath)
-        if (!file.exists()) return emptyList()
-        val byteBuffer = file.readBytes()
-        val sampleRate = 44100 // Assuming a standard sample rate
-        val bytesPerSample = 2 // Assuming 16-bit samples (2 bytes per sample)
-        val samples = byteBuffer.size / bytesPerSample
-        val reductionFactor = samples / sampleRate // Reduce to 1 sample per second for visualization
-
-        val amplitudes = mutableListOf<Float>()
-        for (i in byteBuffer.indices step reductionFactor * bytesPerSample) {
-            val sample = (byteBuffer[i + 1].toInt() shl 8) or (byteBuffer[i].toInt() and 0xFF)
-            amplitudes.add(abs(sample / 32768f))
-        }
-        return amplitudes
-    }
-
     fun formatTime(milliseconds: Long): String {
         val seconds = milliseconds / 1000
         val minutes = seconds / 60
@@ -181,37 +141,22 @@ class TrimViewModel(application: Application) : AndroidViewModel(application), P
         return "$minutes:${remainingSeconds.toString().padStart(2, '0')}"
     }
 
-    init {
-        startTrackingPlaybackPosition()
+    fun resumePlayback() {
+        exoPlayer.play()
     }
+
+
     init {
         exoPlayer.addListener(this)
     }
 
-    override fun onIsPlayingChanged(isPlaying: Boolean) {
-        _isPlaying.value = isPlaying
-    }
-    // Updating the playback position periodically
-    private fun startTrackingPlaybackPosition() {
-        viewModelScope.launch {
-            while (true) {
-                _playbackPosition.value = exoPlayer.currentPosition
-                delay(1000) // For example, updating every second
-            }
-        }
-    }
-    fun updateUserPlaybackPosition(newPosition: Long) {
-        // Update the playback position directly
-        _playbackPosition.value = newPosition
-        // Optionally, seek the player to this new position if needed
-        exoPlayer.seekTo(newPosition)
-    }
     private val _selectedItems = MutableStateFlow<Set<String>>(emptySet())
     private val _selectedItemsOrder = MutableStateFlow<List<String>>(emptyList())
     val selectedItemsOrder: StateFlow<List<String>> = _selectedItemsOrder.asStateFlow()
     private val _downloadableContents = MutableStateFlow<List<DownloadableContent>>(emptyList())
     val downloadableContents: StateFlow<List<DownloadableContent>> = _downloadableContents.asStateFlow()
-
+    private val _waveform = MutableStateFlow<List<Float>>(listOf())
+    val waveform: StateFlow<List<Float>> = _waveform
 
     override fun onCleared() {
         super.onCleared()
@@ -239,6 +184,62 @@ class TrimViewModel(application: Application) : AndroidViewModel(application), P
             }
         }
     }
+    fun getMediaDuration(context: Context, mediaUri: Uri): Long {
+        val retriever = MediaMetadataRetriever()
+        try {
+            context.contentResolver.openFileDescriptor(mediaUri, "r")?.use { parcelFileDescriptor ->
+                retriever.setDataSource(parcelFileDescriptor.fileDescriptor)
+                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                return durationStr?.toLong() ?: 0L
+            }
+        } catch (e: Exception) {
+            Log.e("TrimViewModel", "Error retrieving media duration", e)
+        } finally {
+            retriever.release()
+        }
+        return 0L // Default to 0 if there's an error
+    }
+    private fun processAudioFile(
+        context: Context,
+        audioUri: Uri,
+        onWaveformDataReady: (List<Float>) -> Unit
+    ) {
+        val tempFile = uriToTempFile(context, audioUri)
+        val tempPcmFile = File(context.cacheDir, "temp_audio_file.pcm")
+        extractRawAudioData(tempFile.path, tempPcmFile.path)
+        val waveform = generateWaveformData(tempPcmFile.path)
+        onWaveformDataReady(waveform)
+    }
+    private fun uriToTempFile(context: Context, uri: Uri): File {
+        val tempFile = File.createTempFile("audio", ".mp3", context.cacheDir)
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            tempFile.outputStream().use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
+        return tempFile
+    }
+    private fun generateWaveformData(rawAudioFilePath: String): List<Float> {
+        val file = File(rawAudioFilePath)
+        if (!file.exists()) return emptyList()
+        val byteBuffer = file.readBytes()
+        val sampleRate = 44100 // Assuming a standard sample rate
+        val bytesPerSample = 2 // Assuming 16-bit samples (2 bytes per sample)
+        val samples = byteBuffer.size / bytesPerSample
+        val reductionFactor = samples / sampleRate // Reduce to 1 sample per second for visualization
+
+        val amplitudes = mutableListOf<Float>()
+        for (i in byteBuffer.indices step reductionFactor * bytesPerSample) {
+            val sample = (byteBuffer[i + 1].toInt() shl 8) or (byteBuffer[i].toInt() and 0xFF)
+            amplitudes.add(abs(sample / 32768f))
+        }
+        return amplitudes
+    }
+    private fun extractRawAudioData(inputAudioFilePath: String, outputRawFilePath: String) {
+        val command = "-y -i '$inputAudioFilePath' -f s16le -ac 1 -ar 44100 '$outputRawFilePath'"
+        FFmpeg.execute(command)
+    }
+
     private fun executeFFmpegCommandAndGetOutput(command: String, context: Context): Pair<Int, String> {
         val outputFile = File(context.cacheDir, "ffmpeg_output_${System.currentTimeMillis()}.txt")
         val resultCode = FFmpeg.execute(command)
@@ -346,21 +347,6 @@ class TrimViewModel(application: Application) : AndroidViewModel(application), P
         val startTime = startTimeMs / 1000
         val endTime = endTimeMs / 1000
         return "-y -i '$inputFile' -ss $startTime -to $endTime -acodec copy '$outputFile'"
-    }
-    fun getMediaDuration(context: Context, mediaUri: Uri): Long {
-        val retriever = MediaMetadataRetriever()
-        try {
-            context.contentResolver.openFileDescriptor(mediaUri, "r")?.use { parcelFileDescriptor ->
-                retriever.setDataSource(parcelFileDescriptor.fileDescriptor)
-                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                return durationStr?.toLong() ?: 0L
-            }
-        } catch (e: Exception) {
-            Log.e("TrimViewModel", "Error retrieving media duration", e)
-        } finally {
-            retriever.release()
-        }
-        return 0L // Default to 0 if there's an error
     }
 
     private suspend fun ensureCompatibleFormat(file: File): File = withContext(Dispatchers.IO) {
